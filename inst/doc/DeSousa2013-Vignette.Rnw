@@ -1,0 +1,570 @@
+%\VignetteIndexEntry{Main vignette:Poor prognosis colon cancer is defined by a molecular distinct subtype and develops from serrated precursor lesions}
+%\VignetteKeywords{cancer subtypes, consensus clustering, serrated pathway}
+%\VignettePackage{DeSousa2013}
+\documentclass[12pt]{article}
+\usepackage{amsmath}
+
+\usepackage[pdftex]{graphicx} % more modern
+%\usepackage{epsfig} % less modern
+%\usepackage{subfigure} 
+%\renewcommand{\thesubfigure}{(\Alph{subfigure})}
+\renewcommand{\thefigure}{\arabic{figure}}
+\usepackage{layouts}
+\usepackage{bm}
+
+%\usepackage{subfig}
+\usepackage{color}
+\definecolor{darkblue}{rgb}{0.0,0.0,0.75}
+\usepackage[%
+baseurl={http://www.bioconductor.org},%
+pdftitle={DeSousa2013},%
+pdfauthor={Xin Wang},%
+pdfsubject={DeSousa2013-Vignette},%
+pdfkeywords={Bioconductor},%
+pagebackref,bookmarks,colorlinks,linkcolor=darkblue,citecolor=darkblue,%
+pagecolor=darkblue,raiselinks,pdftex]{hyperref}
+
+\SweaveOpts{keep.source=TRUE,eps=FALSE,include=FALSE,width=4,height=4.5} 
+\newcommand{\Robject}[1]{\texttt{#1}}
+\newcommand{\Rpackage}[1]{\textit{#1}}
+\newcommand{\Rfunction}[1]{\textit{#1}}
+\newcommand{\Rclass}[1]{\textit{#1}}
+\newcommand{\pan}{\emph{\sffamily PAN} }
+\newcommand{\pans}{\emph{\sffamily PANs} }
+\bibliographystyle{unsrt}
+
+\title{Vignette for \emph{\sffamily DeSousa2013}: Poor prognosis colon cancer is 
+defined by a molecularly distinct subtype and precursor lesion}
+\author{Xin Wang}
+\date{January 10, 2013}
+\begin{document}
+\maketitle
+\tableofcontents
+
+<<Ropts, echo=FALSE, results=hide>>=
+options(width=75)
+@ 
+
+\newpage
+
+\section{Introduction}
+The vignette helps the user to reproduce main results and figures using 
+the AMC-AJCCII-90 data set to discover and characterize three molecular 
+distinct subtypes of colon cancer.
+Please refer to DeSousa et al. \cite{DeSousa2013} for more details 
+about the biological background, experimental design as well as 
+bioinformatic analyses.
+
+\section{Package installation}
+Please run all analyses in this vignette under version $2.15$ of R.
+The following packages are employed by the \Rpackage{DeSousa2013} package: 
+\Rpackage{frma}, \Rpackage{hgu133plus2frmavecs} (for microarray data preprocessing), 
+\Rpackage{cluster} (for computing GAP statistics), 
+\Rpackage{sva} (for correcting for non-biological batch effects), 
+\Rpackage{ConsensusClusterPlus} (for consensus clustering), 
+\Rpackage{siggenes} (for differential gene identification), 
+\Rpackage{pamr} (for PAM classification), 
+\Rpackage{survival} (for survival analysis and 
+generating KM plots).
+These packages should be automatically installed when installing 
+\Rpackage{DeSousa2013} from bioconductor:
+
+<<install, eval=FALSE>>=
+source("http://www.bioconductor.org/biocLite.R")
+biocLite("DeSousa2013")
+@ 
+%biocLite(c("frma", "hgu133plus2frmavecs", "ConsensusClusterPlus", 
+%"siggenes", "pamr", "survival", "survplot"))
+
+
+\section{Overview}
+De Sousa et al. interrogated the heterogeneity of colon cancer using an 
+unsupervised classification strategy over 1100 patients. 
+The main bioinformatic pipeline is focused on how to identify three 
+main molecularly distinct subtypes based on the microarray data for 
+90 stage II colon cancer patients.
+
+To begin, we need to load the package:
+<<setup, results=hide>>=
+library(DeSousa2013)
+@
+%library(frma)
+%library(hgu133plus2frmavecs)
+%library(cluster)
+%library(sva)
+%library(survival)
+%library(gplots)
+
+All analyses included in this package are wrapped in a pipeline function 
+\Rfunction{CRCPipeLine}:
+
+<<pipelinefun, eval=FALSE>>=
+data(AMC)
+CRCPipeLine(celpath=".", AMC_sample_head, AMC_CRC_clinical, 
+preprocess=FALSE, gap.ntops = c(2, 4, 8, 12, 16, 20)*1000, 
+gap.K.max = 6, gap.nboot = 100, MADth=0.5, conClust.maxK=12, 
+conClust.reps=1000, diffG.pvalth=0.01, diffG.aucth=0.9, 
+savepath=".")
+@
+
+Although the pipeline function can also reproduce the preprocessing of 
+microarray data, it is not recommended as it can take a long time and the 
+results may change slightly due to different versions of annotation packages 
+and analysis packages. Therefore, the user can choose to skip the preprocessing 
+step and run the following analyses by setting the argument \emph{preprocess} 
+to \emph{TRUE}. When the function finishes, all figures will be saved in a given 
+directory \emph{savepath}.
+
+\section{Subtype identification}
+Now we introduce step by step the computational workflow to perform 
+microarray data preprocessing, computing GAP statistics, consensus clustering, 
+sample and gene filtering, building a PAM classifier, classification, etc. 
+using the AMC-AJCCII-90 data set.
+Finally, we will characterize the prognosis of three subtypes by survival 
+analysis. 
+
+\subsection{Microarray data preprocessing}\label{sec-frma}
+The AMC-AJCCII-90 data set includes 90 stage II colon cancer patients (GSE33113), 
+13 adenomas and 6 normal samples. 
+Microarrays of all samples were normalized and summarized using frozen robust 
+multiarray analysis (fRMA)\cite{mccall2010frozen}. Probe-specific effects 
+and variances are precomputed and frozen in fRMA, which facilitates 
+batches analysis. Gene expression presence/absence was detected using 
+the barcode algorithm\cite{mccall2011gene} and genes that were not present in 
+at least one sample were filtered out.
+Non-biological batch effects between cancer samples + normals and 
+adenomas were corrected using \emph{ComBat} \cite{johnson2007adjusting}.
+
+The whole preprocessing analysis can be reproduced by function \Rfunction{geneExpPre}:
+<<geneExpPre, eval=FALSE>>=
+data(AMC)
+ge.pre <- geneExpPre(celpath, AMC_sample_head)
+ge.all <- ge.pre[["ge.all"]]
+selPbs <- ge.pre[["selPbs"]]
+ge.CRC <- ge.all[selPbs, ]
+@
+
+where \emph{celpath} is the path to the directory including `.CEL' files 
+of all microarrays and \emph{AMC\_sample\_head} is a data frame including mapping 
+information between microarray ids and sample ids. 
+\emph{AMC\_sample\_head} is included in this package and can be loaded using 
+function \Rfunction{data}.
+
+Since we focus on subtype identification in this vignette, the preprocessed 
+data \emph{ge.all} returned by function \Rfunction{geneExpPre} only contains 
+the 90 cancer samples, and \Robject{selPbs} is a vector of probesets that are 
+expressed in at least one sample: 
+
+<<loadData, echo=FALSE>>=
+data(ge.CRC, package="DeSousa2013")
+ge.CRC <- ge.all[selPbs, ]
+@
+
+<<showData>>=
+length(selPbs)
+dim(ge.CRC)
+@
+
+
+\subsection{Computing GAP statistic}\label{sec-GAP}
+GAP statistic\cite{tibshirani2001estimating} is a popular method to 
+estimate the number of clusters in a set of data by comparing the change 
+in observed and expected within-cluster dispersion.  
+To identify the optimal number of clusters, GAP statistic was computed 
+for k=1 to 6 for selected top variable genes.
+The function \Rfunction{compGapStats} can be used to reproduce this step:
+
+<<gaps_analysis, eval=FALSE>>=
+gaps <- compGapStats(ge.CRC, ntops=c(2, 4, 8, 12, 16, 20)*1000, 
+K.max=6, nboot=100)
+gapsmat <- gaps[["gapsmat"]]
+gapsSE <- gaps[["gapsSE"]]
+@
+
+The function \Rfunction{figGAP} can be used to compare the GAP scores across 
+different numbers of clusters:
+
+<<gaps_load, echo=FALSE>>=
+data(gaps, package="DeSousa2013")
+@
+
+<<gaps_plot, fig=TRUE, width=6, height=6, results=hide>>=
+figGAP(gapsmat, gapsSE)
+@
+
+\begin{figure}[tp]
+\begin{center}
+\noindent\makebox[\textwidth]{%
+\includegraphics[width=\textwidth]{DeSousa2013-Vignette-gaps_plot}}
+\caption{\label{fig:gap}
+\textbf{Graph depicts the GAP statistic for a range of 2000-20000 probesets. }
+This analysis suggests optimal clustering at 3 clusters in the AMC-AJCCII-90 set, 
+independent on the number of probesets used. 
+Error bars indicate SEM.
+}
+\end{center}
+\end{figure}
+
+As shown in Figure \ref{fig:gap}, a peak was consistently found at k=3, 
+irrespective of the gene set size employed, indicating that three subtypes 
+is ideal to explain the inherent data structure of the AMC-AJCCII-90 set.
+
+\subsection{Consensus clustering}\label{sec-clust}
+Using the following function, probesets with most variability 
+(Median absolute deviation >0.5) across samples were retained and median 
+centred:
+
+<<selTopVG, eval=FALSE>>=
+sdat <- selTopVarGenes(ge.CRC, MADth=0.5)
+@
+
+<<loadTopVG, echo=FALSE>>=
+data("dat", package="DeSousa2013")
+@
+
+<<showTopVG>>=
+dim(sdat)
+@
+
+Using the 7846 most variable probesets, we performed hierarchical clustering 
+with agglomerative average linkage to cluster these samples. 
+Consensus clustering\cite{monti2003consensus} was employed, with 1000 
+iterations and 0.98 subsampling ratio, to assess the clustering stability. 
+The function \Rfunction{conClust} reproduces this step:
+
+<<conclust_analysis, eval=FALSE>>=
+clus <- conClust(sdat, maxK=12, reps=1000)
+@
+
+<<loadConClust, echo=FALSE>>=
+data(conClust, package="DeSousa2013")
+@
+
+<<showConClust>>=
+clus
+@
+
+\begin{figure}[tp]
+\begin{center}
+\noindent\makebox[\textwidth]{%
+\includegraphics[width=0.7\textwidth]{conclust1}}
+\caption{\label{fig:conclust1}
+\textbf{Consensus clustering for 2, 3, 4 and 5 clusters.} The color 
+is scaled to the frequency that two samples are in the same cluster.
+}
+\end{center}
+\end{figure}
+ 
+\begin{figure}[tp]
+\begin{center}
+\noindent\makebox[\textwidth]{%
+\includegraphics[width=0.85\textwidth]{conclust2}}
+\caption{\label{fig:conclust2}
+\textbf{Empirical cumulative distribution (CDF) of consensus clustering for 
+2 to 12 clusters.}
+}
+\end{center}
+\end{figure}
+ 
+Figure \ref{fig:conclust1} shows the consensus clustering results for k=2, 3, 4 
+and 5. 
+As indicated in the cumulative density curves (Figure \ref{fig:conclust2}),  
+a significant increase in clustering stability was observed from k=2 to 3, 
+but not for k>3. 
+
+\subsection{Collapsing probesets to unique genes}\label{clps}
+To facilitate the use of the classifier on other platforms, we collapsed the 
+expression levels for probesets to genes.
+This was performed before selection of most representative genes (SAM and AUC) 
+and generation of the classifier (PAM), for each gene the probeset with 
+highest overall expression was selected. 
+The following function can reproduce the annotation file to map from probesets 
+to unique genes:
+
+<<pbs_clps2_genes, eval=FALSE>>=
+uniGenes <- pbs2unigenes(ge.CRC, sdat)
+@
+
+<<loadpbs2genes, echo=FALSE>>=
+data(uniGenes, package="DeSousa2013")
+@
+
+<<showpbs2genes>>=
+length(uniGenes)
+print(uniGenes[1:20])
+@
+
+\subsection{Filtering patient samples}\label{sec-silh}
+Subsequently Silhouette width\cite{rousseeuw1987silhouettes} was 
+computed to identify the most representative samples within each cluster. 
+Samples with positive silhouette width (n=85) were retained to build 
+the classifier (Figure \ref{fig:silh}).
+The function \Rfunction{filterSamples} computes Silhouette width, based on 
+which to select most representative samples:
+
+<<silh_amc_analysis, eval=FALSE>>=
+samp.f <- filterSamples(sdat, uniGenes, clus)
+silh <- samp.f[["silh"]]
+sdat.f <- samp.f[["sdat.f"]]
+clus.f <- samp.f[["clus.f"]]
+@
+
+<<load_silh_amc_analysis, echo=FALSE>>=
+data(silh, package="DeSousa2013")
+@
+
+<<show_silh_amc_analysis>>=
+dim(sdat.f)
+rownames(sdat.f)[1:20]
+@
+
+As we see in this filtering step, probesets have been converted to genes.
+The function \Rfunction{figSilh} generates the Silhouette width figure:
+
+<<silh_plot, fig=TRUE, width=6, height=6, results=hide>>=
+figSilh(silh)
+@
+
+\begin{figure}[tp]
+\begin{center}
+\noindent\makebox[\textwidth]{%
+\includegraphics[width=0.7\textwidth]{DeSousa2013-Vignette-silh_plot}}
+\caption{\label{fig:silh}
+\textbf{Silhouette widths of colon cancer samples.}
+The figure shows Silhouette widths of samples in each cluster. 
+Samples with positive Silhouette values were selected as core samples 
+to build the classifier.
+}
+\end{center}
+\end{figure}
+ 
+\subsection{Feature selection}\label{sec-fea}
+%In order to facilitate application of our classifier on data gained using 
+%different microarray platforms, we mapped expression profiles from 
+%probesets to unique genes, where the probeset with highest overall 
+%expression was selected for each gene. 
+To build the CCS classifier, we applied two filtering steps to select 
+the most representative and predictive genes. 
+First, we used Significance Analysis of Microarrays (SAM)\cite{tusher2001significance} 
+(R package \Rpackage{siggenes}) to identify genes significantly 
+differentially expressed (FDR<0.01) between each subtype and the other two.
+The function \Rfunction{findDiffGenes} performs SAM analysis to search for top 
+differential genes between three subtypes:
+
+<<sam_amc_analysis, eval=FALSE>>=
+diffGenes <- findDiffGenes(sdat.f, clus.f, pvalth=0.01)
+@
+
+<<load_sam_amc_analysis, echo=FALSE>>=
+data(diffGenes, package="DeSousa2013")
+@
+
+<<show_sam_amc_analysis>>=
+length(diffGenes)
+@
+
+As we see, 2747 unique genes are highly differentially expressed between subtypes.
+
+Second, we calculated AUC (area under ROC curve, R package \Rpackage{ROCR}) 
+to assess each gene's ability to separate one subtype from the other two. 
+The function \Rfunction{filterDiffGenes} filters differential genes based on 
+AUC scores:
+
+<<auc_amc_analysis, eval=FALSE>>=
+diffGenes.f <- filterDiffGenes(sdat.f, clus.f, diffGenes, aucth=0.9)
+@
+
+<<load_auc_amc_analysis, echo=FALSE>>=
+data(diffGenes.f, package="DeSousa2013")
+@
+
+<<show_auc_amc_analysis>>=
+length(diffGenes.f)
+@
+
+After this step, we retained 323 unique genes that are most predictive.
+
+\subsection{Build PAM classifier}\label{sec-classify}
+The retained 329 genes with AUC > 0.9 were trained by PAM\cite{tibshirani2002diagnosis} 
+to build a robust classifier. 
+To select the optimal threshold for centroid shrinkage, we performed 
+10-fold cross-validation over a range of thresholds for 1000 iterations, 
+and selected the one yielding a good performance (error rate < 2\%) 
+with the least number of genes (Figure \ref{fig:cv_pam}). 
+Of note, the gene filtering steps do not have any significant influence 
+on the selection of signature genes, as observed from PAM classification 
+using various cut-offs on SAM FDR and AUC (data not shown). 
+
+The function \Rfunction{buildClassifier} builds the PAM classifier:
+
+<<build_pam_analysis, eval=FALSE>>=
+sigMat <- sdat.f[diffGenes.f, names(clus.f)]
+classifier <- buildClassifier(sigMat, clus.f, nfold=10, nboot=100)
+signature <- classifier[["signature"]]
+pam.rslt <- classifier[["pam.rslt"]]
+thresh <- classifier[["thresh"]]
+err <- classifier[["err"]]
+@
+
+The function \Rfunction{figPAMCV} reproduces the PAM cross validation figure:
+
+<<load_pam_rslt, echo=FALSE>>=
+data(classifier, package="DeSousa2013")
+@
+
+<<cv_pam_plot, fig=TRUE, width=6, height=4.5, results=hide>>=
+figPAMCV(err)
+@
+
+\begin{figure}[tp]
+\begin{center}
+\noindent\makebox[\textwidth]{%
+\includegraphics[width=\textwidth]{DeSousa2013-Vignette-cv_pam_plot}}
+\caption{\label{fig:cv_pam}
+\textbf{PAM classification with cross validations.}
+The figure shows the cross validation error rate as a function of level 
+of PAM shrinkage (number of genes left).
+}
+\end{center}
+\end{figure}
+
+Using this strategy, we built a classifier of 146 unique genes and used 
+it to classify the CRC samples (Figure \ref{fig:cls_amc}). 
+
+The classifier is then applied to classify the 90 colon cancer samples. 
+A posterior probability >0.5 for one of the subtypes was regarded as 
+being indicative of association with that group. 
+The following functions are used to reproduce the classification and figure:
+
+<<cls_pam_analysis, eval=FALSE>>=
+datsel <- sdat[names(uniGenes), ]
+rownames(datsel) <- uniGenes	
+datsel <- datsel[diffGenes.f, ]
+pamcl <- pamClassify(datsel, signature, pam.rslt, thresh, postRth=1)
+sdat.sig <- pamcl[["sdat.sig"]]
+pred <- pamcl[["pred"]]
+clu.pred <- pamcl[["clu.pred"]]
+nam.ord <- pamcl[["nam.ord"]]
+gclu.f <- pamcl[["gclu.f"]]
+@
+
+<<load_cls_amc, echo=FALSE>>=
+data(AMC, package="DeSousa2013")
+data(predAMC, package="DeSousa2013")
+@
+
+<<cls_amc_plot, fig=TRUE, width=8, height=8, results=hide>>=
+figClassify(AMC_CRC_clinical, pred, clu.pred, sdat.sig, gclu.f, nam.ord)
+@
+
+\begin{figure}[tp]
+\begin{center}
+\noindent\makebox[\textwidth]{%
+\includegraphics[width=\textwidth]{DeSousa2013-Vignette-cls_amc_plot}}
+\caption{\label{fig:cls_amc}
+\textbf{The AMC-AJCCII-90 set is classified in three subtypes according to the 
+classifier.}
+The top bar indicates the subtypes; light blue; CCS1, green; CCS2, 
+dark blue; CCS3. 
+In the heatmap, rows indicate genes from the classifier and columns 
+represent patients. 
+The heatmap is color-coded based on median centred log2 gene expression 
+levels (orange, high expression; blue, low expression). 
+The lower bar indicates the posterior probability of belonging to each 
+respective subtype.
+}
+\end{center}
+\end{figure}
+
+\section{Subtype characterization}
+\subsection{Survival analysis}\label{sec-surv}
+The clinical relevance of this classification becomes evident when analysing 
+the disease-free survival, which revealed a significantly poorer prognosis for 
+CCS3 patients compared to CCS1-CIN and CCS2-MSI patients (Figure \ref{fig:surv_amc}). 
+
+To reproduce the progression free survival analysis, we developed function \Rfunction{progAMC}:
+
+<<surv_amc_analysis>>=
+prog <- progAMC(AMC_CRC_clinical, AMC_sample_head, clu.pred)
+surv <- prog[["surv"]]
+survstats <- prog[["survstats"]]
+@
+
+The function \Rfunction{figKM} can be used to reproduce the KM plot:
+
+<<load_surv_amc, echo=FALSE>>=
+data(survival, package="DeSousa2013")
+@
+
+<<surv_amc_plot, fig=TRUE, width=6, height=6, results=hide>>=
+figKM(surv, survstats)
+@
+
+\begin{figure}[tp]
+\begin{center}
+\noindent\makebox[\textwidth]{%
+\includegraphics[width=0.8\textwidth]{DeSousa2013-Vignette-surv_amc_plot}}
+\caption{\label{fig:surv_amc}
+\textbf{Kaplan-Meier graphs depicting Disease-free survival (DFS) within 
+the AMC-AJCCII-90 set stratified by the CCS classification.}
+}
+\end{center}
+\end{figure}
+
+\section{Session info}
+
+This document was produced using:
+
+<<sessionInfo, results=tex, print=TRUE>>=
+toLatex(sessionInfo())
+@ 
+
+\renewcommand{\refname}{\section{References}}
+\begin{thebibliography}{1}
+\bibitem{DeSousa2013}
+De Sousa E Melo, F. and Wang, X. and Jansen, M. et al.
+\newblock Poor prognosis colon cancer is defined by a molecularly distinct subtype and precursor lesion.
+\newblock {\em accepted\/}
+
+\bibitem{mccall2010frozen}
+McCall, Matthew N and Bolstad, Benjamin M and Irizarry, Rafael A (2010).
+\newblock Frozen robust multiarray analysis (fRMA).
+\newblock {\em Biostatistics\/}, {\bf 11}(2), 242--253.
+
+\bibitem{mccall2011gene}
+McCall, Matthew N and Uppal, Karan and Jaffee, Harris A and Zilliox, Michael J and Irizarry, Rafael A (2011).
+\newblock The Gene Expression Barcode: leveraging public data repositories to begin cataloging the human and murine transcriptomes.
+\newblock {\em Nucleic acids research\/}, {\bf 39}(suppl 1), D1011--D1015.
+
+\bibitem{johnson2007adjusting}
+Johnson, W Evan and Li, Cheng and Rabinovic, Ariel (2007).
+\newblock Adjusting batch effects in microarray expression data using empirical Bayes methods.
+\newblock {\em Biostatistics\/}, {\bf 8}(1), 118--127.
+
+\bibitem{tibshirani2001estimating}
+Tibshirani, Robert and Walther, Guenther and Hastie, Trevor (2001).
+\newblock Estimating the number of clusters in a data set via the gap statistic.
+\newblock {\em Journal of the Royal Statistical Society: Series B (Statistical Methodology)\/}, {\bf 63}(2), 411--423.
+
+\bibitem{monti2003consensus}
+Monti, Stefano and Tamayo, Pablo and Mesirov, Jill and Golub, Todd (2003).
+\newblock Consensus clustering: a resampling-based method for class discovery and visualization of gene expression microarray data.
+\newblock {\em Machine learning\/}, {\bf 52}(1), 91--118.
+
+\bibitem{rousseeuw1987silhouettes}
+Rousseeuw, Peter J (1987).
+\newblock Silhouettes: a graphical aid to the interpretation and validation of cluster analysis
+\newblock {\em Journal of computational and applied mathematics\/}, {\bf 20}, 53--65.
+
+\bibitem{tusher2001significance}
+Tusher, Virginia Goss and Tibshirani, Robert and Chu, Gilbert (2001).
+\newblock Significance analysis of microarrays applied to the ionizing radiation response.
+\newblock {\em PNAS\/}, {\bf 98}(9), 5116--5121.
+
+\bibitem{tibshirani2002diagnosis}
+Tibshirani, Robert and Hastie, Trevor and Narasimhan, Balasubramanian and Chu, Gilbert (2002).
+\newblock Diagnosis of multiple cancer types by shrunken centroids of gene expression.
+\newblock {\em PNAS\/}, {\bf 99}(10), 6567--6572.
+
+\end{thebibliography}
+\end{document}

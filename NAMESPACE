@@ -1,0 +1,33 @@
+importFrom(AnnotationDbi, as.list)
+importFrom(pamr, pamr.train, pamr.cv, pamr.listgenes, pamr.predict)
+importFrom(cluster, clusGap, silhouette)
+importFrom(ConsensusClusterPlus, ConsensusClusterPlus, calcICL)
+importFrom(gplots, plotCI)
+importFrom(survival, survfit, survdiff, coxph, Surv)
+importFrom(ROCR, prediction, performance)
+importFrom(Biobase, rowMax)
+importFrom(siggenes, sam)
+importFrom(affy, ReadAffy, exprs)
+importFrom(frma, frma, barcode)
+importFrom(sva, ComBat)
+importFrom(hgu133plus2.db, hgu133plus2SYMBOL)
+
+export(
+	"buildClassifier", 
+	"compGapStats", 
+	"conClust", 
+	"filterDiffGenes", 
+	"filterSamples", 
+	"findDiffGenes", 
+	"geneExpPre", 
+	"pamClassify", 
+	"pbs2unigenes", 
+	"progAMC", 
+	"selTopVarGenes", 
+	"CRCPipeLine", 
+	"figGAP", 
+	"figSilh", 
+	"figPAMCV", 
+	"figClassify", 
+	"figKM"
+)

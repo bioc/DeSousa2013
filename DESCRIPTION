@@ -1,0 +1,20 @@
+Package: DeSousa2013
+Type: Package
+Title: Poor prognosis colon cancer is defined by a molecularly distinct
+        subtype and precursor lesion
+Version: 0.99.1
+Date: 2013-04-10
+Author: Xin Wang <Xin.Wang@cruk.cam.ac.uk>
+Maintainer: Xin Wang <Xin.Wang@cruk.cam.ac.uk>
+Depends: R (>= 2.15),
+Imports: affy, frma, frmaTools, hgu133plus2.db, hgu133plus2frmavecs,
+        sva, rgl, ConsensusClusterPlus, cluster, siggenes, ROCR, pamr,
+        survival, gplots, AnnotationDbi, Biobase
+Description: This package reproduces the main pipeline to analyze the 
+	AMC-AJCCII-90 microarray data set in De Sousa et al. accepted by Nature 
+	Medicine in 2013. 
+License: Artistic-2.0
+biocViews: Bioinformatics
+Collate: preprocessing.R consensusClustering.R featureSelection.R
+        classification.R prognosis.R figures.R pipeline.R
+LazyLoad: yes
