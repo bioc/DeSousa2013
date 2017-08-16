@@ -1,0 +1,12 @@
+AMC: AMC_CRC_clinical AMC_sample_head
+classifier: cents err pam.rslt signature thresh
+conClust: clus
+dat: sdat
+diffGenes
+diffGenes.f
+gaps: gapsSE gapsmat
+ge.CRC: ge.all selPbs
+predAMC: clu.pred gclu.f nam.ord pred sdat.sig
+silh: clus.f sdat.f silh
+survival: data4surv surv survstats
+uniGenes
