@@ -70,8 +70,9 @@ These packages should be automatically installed when installing
 \Rpackage{DeSousa2013} from bioconductor:
 
 <<install, eval=FALSE>>=
-source("http://www.bioconductor.org/biocLite.R")
-biocLite("DeSousa2013")
+if (!requireNamespace("BiocManager", quietly=TRUE))
+    install.packages("BiocManager")
+BiocManager::install("DeSousa2013")
 @ 
 %biocLite(c("frma", "hgu133plus2frmavecs", "ConsensusClusterPlus", 
 %"siggenes", "pamr", "survival", "survplot"))
