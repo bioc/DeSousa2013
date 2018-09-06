@@ -74,7 +74,7 @@ if (!requireNamespace("BiocManager", quietly=TRUE))
     install.packages("BiocManager")
 BiocManager::install("DeSousa2013")
 @ 
-%biocLite(c("frma", "hgu133plus2frmavecs", "ConsensusClusterPlus", 
+%BiocManager::install(c("frma", "hgu133plus2frmavecs", "ConsensusClusterPlus", 
 %"siggenes", "pamr", "survival", "survplot"))
 
 
