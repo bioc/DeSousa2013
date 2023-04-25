@@ -2,7 +2,7 @@ Package: DeSousa2013
 Type: Package
 Title: Poor prognosis colon cancer is defined by a molecularly distinct
         subtype and precursor lesion
-Version: 1.36.0
+Version: 1.37.0
 Date: 2013-04-10
 Author: Xin Wang <Xin.Wang@cruk.cam.ac.uk>
 Maintainer: Xin Wang <Xin.Wang@cruk.cam.ac.uk>
